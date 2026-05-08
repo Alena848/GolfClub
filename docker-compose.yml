@@ -1,0 +1,46 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: golfclub-db
+    environment:
+      POSTGRES_DB: golfclub
+      POSTGRES_USER: golfclub
+      POSTGRES_PASSWORD: golfclub
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U golfclub -d golfclub"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: ./backend
+    container_name: golfclub-backend
+    environment:
+      DATABASE_URL: postgresql://golfclub:golfclub@db:5432/golfclub
+      FLASK_ENV: development
+      CORS_ORIGINS: http://localhost:5173,http://127.0.0.1:5173
+      OFFER_DEADLINE_DAYS: 7
+    ports:
+      - "5001:5000"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./frontend
+    container_name: golfclub-frontend
+    environment:
+      VITE_API_BASE_URL: http://localhost:5001/api
+    ports:
+      - "5173:5173"
+    depends_on:
+      - backend
+
+volumes:
+  postgres-data:
