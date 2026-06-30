@@ -81,8 +81,46 @@ jobs:
           context: ./frontend
           file: ./frontend/Dockerfile.prod
           push: true
+          build-args: |
+            VITE_API_BASE_URL=http://golfclub-alb-983092685.us-east-1.elb.amazonaws.com/api
           tags: |
             ${{ steps.login-ecr.outputs.registry }}/golfclub-frontend:${{ github.sha }}
             ${{ steps.login-ecr.outputs.registry }}/golfclub-frontend:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      # ── Деплой backend в ECS ───────────────────────────────────────────
+      # Шаг 1: вставить новый образ в Task Definition
+      - name: Update backend task definition
+        id: backend-task-def
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition-family: golfclub-backend
+          container-name: backend
+          image: ${{ steps.login-ecr.outputs.registry }}/golfclub-backend:${{ github.sha }}
+
+      # Шаг 2: задеплоить обновлённую Task Definition в сервис
+      - name: Deploy backend to ECS
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
+        with:
+          task-definition: ${{ steps.backend-task-def.outputs.task-definition }}
+          service: golfclub-backend
+          cluster: golfclub-cluster
+          wait-for-service-stability: true
+
+      # ── Деплой frontend в ECS ──────────────────────────────────────────
+      - name: Update frontend task definition
+        id: frontend-task-def
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition-family: golfclub-frontend
+          container-name: frontend
+          image: ${{ steps.login-ecr.outputs.registry }}/golfclub-frontend:${{ github.sha }}
+
+      - name: Deploy frontend to ECS
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
+        with:
+          task-definition: ${{ steps.frontend-task-def.outputs.task-definition }}
+          service: golfclub-frontend
+          cluster: golfclub-cluster
+          wait-for-service-stability: true
